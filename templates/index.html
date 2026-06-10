@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Silver Tracker (INR)</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c232d; --line:#2a3440;
+    --txt:#e6edf3; --muted:#8b98a5; --silver:#c8d1da;
+    --bull:#22c55e; --bear:#ef4444; --neutral:#8b98a5; --accent:#5aa9e6;
+    --gold:#e8b923;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  header{padding:16px 24px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{font-size:18px;margin:0;letter-spacing:.5px}
+  header h1 .ag{color:var(--silver)}
+  .pill{font-size:11px;color:var(--muted);border:1px solid var(--line);
+    padding:2px 8px;border-radius:20px}
+  .priceblock{margin-left:auto;text-align:right}
+  .price{font-size:30px;font-weight:700;line-height:1}
+  .subprice{font-size:12px;color:var(--muted);margin-top:3px}
+  .chg{font-size:14px;font-weight:600;margin-left:8px}
+  .up{color:var(--bull)} .down{color:var(--bear)} .flat{color:var(--neutral)}
+  .wrap{padding:16px 24px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .panel h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;
+    color:var(--muted);margin:0 0 12px}
+  .grid{display:grid;grid-template-columns:1.6fr 1fr;gap:16px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+
+  /* ---- buy score hero ---- */
+  .hero{display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:center;margin-bottom:16px}
+  @media(max-width:760px){.hero{grid-template-columns:1fr}}
+  .scorenum{font-size:64px;font-weight:800;line-height:1}
+  .scorenum small{font-size:22px;color:var(--muted);font-weight:600}
+  .scorelabel{font-size:18px;font-weight:700;letter-spacing:1px;margin-top:2px}
+  .gauge{height:14px;border-radius:8px;position:relative;margin:14px 0 6px;
+    background:linear-gradient(90deg,#ef4444 0%,#ef4444 25%,#eab308 50%,#22c55e 75%,#22c55e 100%)}
+  .gauge .mark{position:absolute;top:-6px;width:4px;height:26px;background:#fff;
+    border-radius:2px;box-shadow:0 0 0 2px rgba(0,0,0,.4);transition:left .5s}
+  .gaugescale{display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}
+  .comp{display:flex;gap:8px;margin:14px 0 8px;flex-wrap:wrap}
+  .comp .c{flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px}
+  .comp .c .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .comp .c .v{font-size:18px;font-weight:700}
+  .reasons{list-style:none;padding:0;margin:6px 0 0;font-size:13px;color:var(--txt)}
+  .reasons li{padding:3px 0 3px 18px;position:relative;color:var(--muted)}
+  .reasons li:before{content:"›";position:absolute;left:2px;color:var(--accent)}
+  .alertbar{margin-top:12px;padding:9px 12px;border-radius:8px;font-size:13px;
+    border:1px solid var(--line);background:var(--panel2)}
+  .alertbar.on{border-color:var(--bull)} .alertbar.sell{border-color:var(--bear)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+
+  .kpis{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+  .kpi{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-width:92px}
+  .kpi .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .kpi .v{font-size:15px;font-weight:600}
+  .zone{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;
+    margin-bottom:6px;background:var(--panel2);border:1px solid var(--line)}
+  .zone.res{border-left:3px solid var(--bear)} .zone.sup{border-left:3px solid var(--bull)}
+  .zone .lvl{font-weight:700;font-size:14px;min-width:96px}
+  .zone .meta{font-size:11px;color:var(--muted)}
+  .bars{margin-left:auto;display:flex;gap:2px}
+  .bars i{width:5px;height:14px;background:var(--line);border-radius:1px;display:inline-block}
+  .bars i.on{background:var(--accent)}
+  .biasbar{height:10px;border-radius:6px;background:var(--panel2);overflow:hidden;
+    display:flex;border:1px solid var(--line);margin:6px 0 4px}
+  .biasbar .b{height:100%}
+
+  .news{max-height:600px;overflow:auto;margin-top:6px}
+  .nitem{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .nitem:last-child{border:0}
+  .verdict{flex:0 0 86px;text-align:center;border-radius:8px;padding:6px 4px;font-weight:700;
+    font-size:11px;line-height:1.3;align-self:flex-start}
+  .verdict .em{font-size:18px;display:block}
+  .verdict.bullish{background:rgba(34,197,94,.12);color:var(--bull);border:1px solid var(--bull)}
+  .verdict.bearish{background:rgba(239,68,68,.12);color:var(--bear);border:1px solid var(--bear)}
+  .verdict.neutral{background:var(--panel2);color:var(--muted);border:1px solid var(--line)}
+  .nbody a{color:var(--txt);text-decoration:none;font-weight:600}
+  .nbody a:hover{color:var(--accent)}
+  .meaning{font-size:12.5px;color:var(--silver);margin:3px 0}
+  .nmeta{font-size:11px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .nmeta .tag{padding:0 7px;border-radius:20px;border:1px solid var(--line)}
+  .nmeta .tag.direct{color:var(--accent);border-color:var(--accent)}
+  .nmeta .tag.mover{color:#0e1116;background:var(--gold);border-color:var(--gold);font-weight:700}
+  .nmeta .tag.ai{color:#0e1116;background:#a78bfa;border-color:#a78bfa;font-weight:700}
+  .nitem.dim{opacity:.55}
+  footer{padding:14px 24px;color:var(--muted);font-size:11px;border-top:1px solid var(--line)}
+  .loading{color:var(--muted);padding:20px;text-align:center}
+  .filterbtns{display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap}
+  .fb{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--panel2);
+    border:1px solid var(--line);color:var(--muted);cursor:pointer}
+  .fb.active{color:var(--txt);border-color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Silver Tracker <span class="ag">Ag</span></h1>
+  <span class="pill" id="sym">…</span>
+  <span class="pill" id="asof">loading…</span>
+  <div class="priceblock">
+    <div><span class="price" id="price">—</span><span class="chg flat" id="chg"></span></div>
+    <div class="subprice" id="subprice"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- BUY SCORE HERO -->
+  <div class="panel" style="margin-bottom:16px">
+    <h2>Silver Buy Score</h2>
+    <div class="hero">
+      <div>
+        <div class="scorenum" id="scorenum">—<small>/100</small></div>
+        <div class="scorelabel" id="scorelabel">loading…</div>
+      </div>
+      <div>
+        <div class="gauge"><div class="mark" id="mark" style="left:50%"></div></div>
+        <div class="gaugescale"><span>0 · Strong Sell</span><span>50 · Hold</span><span>Strong Buy · 100</span></div>
+        <div class="comp" id="comp"></div>
+        <ul class="reasons" id="reasons"></ul>
+        <div class="alertbar" id="alertbar">…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- chart + indicators -->
+    <div class="panel">
+      <h2>Price &amp; Support / Resistance (₹/kg)</h2>
+      <div class="kpis" id="kpis"></div>
+      <canvas id="chart" height="130"></canvas>
+    </div>
+    <!-- zones + news bias -->
+    <div>
+      <div class="panel" style="margin-bottom:16px">
+        <h2>Resistance &amp; Support Zones (₹/kg)</h2>
+        <div id="zones" class="loading">loading…</div>
+      </div>
+      <div class="panel">
+        <h2>News-driven Silver Bias</h2>
+        <div id="bias" class="loading">loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- news -->
+  <div class="panel" style="margin-top:16px">
+    <h2>Silver News &nbsp;<span style="color:var(--muted);font-weight:400" id="newscount"></span></h2>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
+      <b style="color:var(--gold)">⚡ Movers</b> = catalysts that can actually cause a surge or reversal
+      (Fed decisions, inflation prints, war, supply shocks). Routine price recaps are hidden here.
+    </div>
+    <div id="aistatus" style="font-size:12px;margin-bottom:8px"></div>
+    <div class="filterbtns" id="filters">
+      <span class="fb active" data-f="movers">⚡ Movers only</span>
+      <span class="fb" data-f="all">All news</span>
+      <span class="fb" data-f="bullish">🟢 Good</span>
+      <span class="fb" data-f="bearish">🔴 Bad</span>
+    </div>
+    <div class="filterbtns" id="sorters">
+      <span style="font-size:11px;color:var(--muted);align-self:center;margin-right:2px">Sort:</span>
+      <span class="fb active" data-s="impact">Top movers</span>
+      <span class="fb" data-s="newest">Newest first</span>
+      <span class="fb" data-s="oldest">Oldest first</span>
+    </div>
+    <div id="news" class="news loading">loading…</div>
+  </div>
+</div>
+
+<footer>
+  Prices: Yahoo Finance (silver + USD/INR), shown in ₹/kg · News: Google News RSS (no API key).
+  Auto-updates every ~1 min in your browser and every 3 min on the server (alerts run even when this page is closed).
+  Educational tool — not financial advice.
+</footer>
+
+<script>
+let chart, allNews=[], filter="movers", sortBy="impact";
+const inr = n => n==null ? "—" : "₹"+Number(Math.round(n)).toLocaleString("en-IN");
+const cls = n => n>0?"up":n<0?"down":"flat";
+const arrow = n => n>0?"▲":n<0?"▼":"●";
+
+async function load(){
+  try{
+    const r=await fetch("/api/all"); const d=await r.json();
+    if(d.error){document.getElementById("news").textContent="Error: "+d.error;return;}
+    renderScore(d.score,d.alert,d.market);
+    renderMarket(d.market);
+    renderNews(d.news);
+  }catch(e){console.error(e);}
+}
+
+function renderScore(s,a,m){
+  const col = s.signal==="buy"?"var(--bull)":s.signal==="sell"?"var(--bear)":"var(--gold)";
+  const sn=document.getElementById("scorenum");
+  sn.innerHTML=s.score+'<small>/100</small>'; sn.style.color=col;
+  const sl=document.getElementById("scorelabel"); sl.textContent=s.label; sl.style.color=col;
+  document.getElementById("mark").style.left=s.score+"%";
+  const c=s.components;
+  const cell=(l,v)=>`<div class="c"><div class="l">${l}</div><div class="v ${cls(v)}">${v>0?'+':''}${v}</div></div>`;
+  document.getElementById("comp").innerHTML=
+    cell("News",c.news)+cell("Levels (S/R)",c.levels)+cell("Momentum (RSI)",c.momentum);
+  document.getElementById("reasons").innerHTML=s.reasons.map(r=>`<li>${r}</li>`).join("");
+
+  const ab=document.getElementById("alertbar");
+  ab.className="alertbar"+(s.signal==="buy"?" on":s.signal==="sell"?" sell":"");
+  let msg;
+  if(s.signal==="buy") msg=`<span class="dot" style="background:var(--bull)"></span><b>BUY alert active</b> — score ≥ ${a.buy_threshold}.`;
+  else if(s.signal==="sell") msg=`<span class="dot" style="background:var(--bear)"></span><b>SELL alert active</b> — score ≤ ${a.sell_threshold}.`;
+  else msg=`<span class="dot" style="background:var(--muted)"></span>No alert — fires at score ≥ ${a.buy_threshold} (buy) or ≤ ${a.sell_threshold} (sell).`;
+  msg += a.smtp_configured ? ` &nbsp;📧 Email/SMS configured.` :
+         ` &nbsp;<span style="color:var(--gold)">⚠ Add alert_config.json to receive email/phone alerts.</span>`;
+  if(a.fired) msg+=` &nbsp;<span class="up">Alert sent ✓</span>`;
+  ab.innerHTML=msg;
+}
+
+function renderMarket(m){
+  document.getElementById("sym").textContent=m.symbol+" · "+m.currency;
+  document.getElementById("asof").textContent="as of "+new Date(m.as_of).toLocaleString("en-IN");
+  document.getElementById("price").textContent=inr(m.price)+"/kg";
+  const ch=document.getElementById("chg"); ch.className="chg "+cls(m.change);
+  ch.textContent=arrow(m.change)+" "+inr(Math.abs(m.change))+" ("+m.change_pct+"%)";
+  const f=m.fx;
+  document.getElementById("subprice").textContent=
+    (f.inr_per_10g?inr(f.inr_per_10g)+"/10g · ":"")+"$"+f.usd_per_oz+"/oz · USDINR "+f.usdinr;
+
+  const i=m.indicators;
+  const kpi=(l,v)=>`<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div></div>`;
+  document.getElementById("kpis").innerHTML=
+    kpi("Trend",i.trend)+kpi("RSI 14",i.rsi14)+kpi("EMA20",inr(i.ema20))+
+    kpi("EMA50",inr(i.ema50))+kpi("EMA200",i.ema200?inr(i.ema200):"—")+
+    kpi("52w H",inr(i.hi52w))+kpi("52w L",inr(i.lo52w));
+  renderZones(m); drawChart(m);
+}
+
+function strengthBars(s,max){
+  let n=Math.max(1,Math.min(5,Math.round(s/max*5))),h="";
+  for(let k=0;k<5;k++)h+=`<i class="${k<n?'on':''}"></i>`;return h;
+}
+function renderZones(m){
+  const maxS=Math.max(1,...[...m.support,...m.resistance].map(z=>z.strength));
+  const row=(z,kind)=>`<div class="zone ${kind}">
+      <span class="lvl">${inr(z.price)}</span>
+      <span class="meta">${kind==='res'?'Resist':'Support'} · ${z.touches} touch · ${z.dist_pct>0?'+':''}${z.dist_pct}%</span>
+      <span class="bars" title="strength ${z.strength}">${strengthBars(z.strength,maxS)}</span></div>`;
+  document.getElementById("zones").innerHTML=
+    m.resistance.slice().reverse().map(z=>row(z,'res')).join("")+
+    `<div style="text-align:center;color:var(--accent);font-size:12px;margin:6px 0">— price ${inr(m.price)}/kg —</div>`+
+    m.support.map(z=>row(z,'sup')).join("");
+}
+
+function drawChart(m){
+  const labels=m.candles.map(c=>c.t), close=m.candles.map(c=>c.c);
+  if(chart) chart.destroy();
+  const sr=[...m.support.map(z=>({y:z.price,c:'#22c55e'})),
+            ...m.resistance.map(z=>({y:z.price,c:'#ef4444'}))];
+  const srSets=sr.map(z=>({label:'',data:labels.map(()=>z.y),borderColor:z.c,borderWidth:1,
+     borderDash:[5,4],pointRadius:0,fill:false,tension:0}));
+  chart=new Chart(document.getElementById("chart"),{type:'line',
+    data:{labels,datasets:[
+      {label:'Silver ₹/kg',data:close,borderColor:'#c8d1da',borderWidth:2,pointRadius:0,
+       fill:true,tension:.15,
+       backgroundColor:(c)=>{const g=c.chart.ctx.createLinearGradient(0,0,0,320);
+         g.addColorStop(0,'rgba(200,209,218,.18)');g.addColorStop(1,'rgba(200,209,218,0)');return g;}},
+      ...srSets]},
+    options:{responsive:true,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>'₹'+Number(c.parsed.y).toLocaleString('en-IN')+'/kg'}}},
+      scales:{x:{ticks:{color:'#8b98a5',maxTicksLimit:8},grid:{display:false}},
+              y:{ticks:{color:'#8b98a5',callback:v=>'₹'+(v/1000).toFixed(0)+'k'},grid:{color:'#1c232d'}}}}});
+}
+
+function renderNews(n){
+  allNews=n.items;
+  const ai=document.getElementById("aistatus");
+  if(n.llm&&n.llm.used) ai.innerHTML=`<span class="tag ai">🤖 AI</span> Gemini analyzed the top ${n.llm.analyzed} stories (${n.llm.model}).`;
+  else ai.innerHTML=n.llm?`<span style="color:var(--muted)">Keyword analysis (Gemini: ${n.llm.reason}).</span>`:"";
+  const s=n.summary, bp=Math.max(0,Math.min(100,50+s.score/2));
+  const bc=s.bias==='bullish'?'up':s.bias==='bearish'?'down':'flat';
+  document.getElementById("bias").innerHTML=`
+    <div style="font-size:22px;font-weight:700" class="${bc}">${s.bias.toUpperCase()}
+      <span style="font-size:13px;color:var(--muted)">score ${s.score}</span></div>
+    <div class="biasbar"><div class="b" style="width:${bp}%;background:var(--bull)"></div>
+      <div class="b" style="width:${100-bp}%;background:var(--bear)"></div></div>
+    <div style="font-size:11px;color:var(--muted)">Driven by <b style="color:var(--gold)">${s.catalyst_count} market-moving</b> stories
+      (recaps ignored) · good ${s.bullish_weight} / bad ${s.bearish_weight}</div>`;
+  drawNews();
+}
+
+function drawNews(){
+  let list=allNews.slice();
+  if(filter==='movers') list=list.filter(i=>i.catalyst);
+  else if(filter==='bullish'||filter==='bearish') list=list.filter(i=>i.direction===filter);
+  const age=i=>(i.age_hours==null?1e9:i.age_hours);
+  if(sortBy==='newest') list.sort((a,b)=>age(a)-age(b));
+  else if(sortBy==='oldest') list.sort((a,b)=>age(b)-age(a));
+  // else 'impact' -> keep server order (catalysts first, then move potential)
+  const movers=allNews.filter(i=>i.catalyst).length;
+  document.getElementById("newscount").textContent="("+list.length+" shown · "+movers+" movers / "+allNews.length+" total)";
+  const el=document.getElementById("news");
+  if(!list.length){el.innerHTML='<div class="loading">No market-moving news right now — switch to “All news”.</div>';return;}
+  el.innerHTML=list.map(i=>{
+    const em=i.direction==='bullish'?'🟢':i.direction==='bearish'?'🔴':'⚪';
+    const age=i.age_hours!=null?(i.age_hours<24?Math.round(i.age_hours)+"h ago":Math.round(i.age_hours/24)+"d ago"):"";
+    const catChip=i.catalyst?`<span class="tag mover">⚡ ${i.catalyst_type||'Mover'}</span>`:
+                  (i.is_recap?`<span class="tag" style="opacity:.6">recap</span>`:"");
+    const aiChip=i.ai?`<span class="tag ai">🤖 AI</span>`:"";
+    return `<div class="nitem${i.is_recap?' dim':''}">
+      <div class="verdict ${i.direction}"><span class="em">${em}</span>${i.label}</div>
+      <div class="nbody">
+        <a href="${i.link}" target="_blank" rel="noopener">${i.title}</a>
+        <div class="meaning">${i.meaning}</div>
+        <div class="nmeta">
+          ${aiChip}${catChip}
+          <span class="tag ${i.directness}">${i.directness}</span>
+          <span>${i.source||i.topic}</span><span>${age}</span>
+          <span>move potential <b style="color:var(--txt)">${i.impact}</b></span>
+        </div></div></div>`;}).join("");
+}
+
+document.getElementById("filters").addEventListener("click",e=>{
+  if(!e.target.dataset.f)return;
+  filter=e.target.dataset.f;
+  document.querySelectorAll("#filters .fb").forEach(b=>b.classList.toggle("active",b.dataset.f===filter));
+  drawNews();
+});
+document.getElementById("sorters").addEventListener("click",e=>{
+  if(!e.target.dataset.s)return;
+  sortBy=e.target.dataset.s;
+  document.querySelectorAll("#sorters .fb").forEach(b=>b.classList.toggle("active",b.dataset.s===sortBy));
+  drawNews();
+});
+
+load(); setInterval(load,60000);
+</script>
+</body>
+</html>

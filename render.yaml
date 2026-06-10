@@ -1,0 +1,31 @@
+# Render blueprint for Silver Tracker.
+# In Render: New + → Blueprint → connect this repo. Then set the secret env vars
+# (GEMINI_API_KEYS, SMTP_*) in the dashboard — they are intentionally NOT in git.
+services:
+  - type: web
+    name: silver-tracker
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.6"
+      - key: GEMINI_API_KEYS
+        sync: false      # set in dashboard (comma-separated keys)
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: ALERT_FROM
+        sync: false
+      - key: ALERT_TO
+        sync: false
+      - key: BUY_THRESHOLD
+        value: "75"
+      - key: SELL_THRESHOLD
+        value: "25"

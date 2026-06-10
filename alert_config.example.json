@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "buy_threshold": 75,
+  "sell_threshold": 25,
+  "cooldown_minutes": 180,
+  "smtp_host": "smtp.gmail.com",
+  "smtp_port": 465,
+  "smtp_user": "youraddress@gmail.com",
+  "smtp_pass": "your-16-char-gmail-app-password",
+  "from_addr": "youraddress@gmail.com",
+  "to_addrs": [
+    "youraddress@gmail.com",
+    "9876543210@vtext.com"
+  ]
+}

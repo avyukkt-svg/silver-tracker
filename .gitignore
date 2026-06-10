@@ -1,0 +1,13 @@
+# secrets — never commit
+alert_config.json
+gemini_config.json
+alert_state.json
+alerts.log
+server.log
+__pycache__/
+*.pyc
+
+# local / editor clutter
+.DS_Store
+.idea/
+.claude/
