@@ -11,6 +11,7 @@ Symbols tried in order until one returns data:
     SLV      iShares Silver Trust ETF             <- liquid proxy
     XAGUSD=X spot silver                          <- FX feed fallback
 """
+import os
 import warnings
 from datetime import datetime, timezone
 
@@ -21,6 +22,11 @@ import yfinance as yf
 warnings.simplefilter("ignore")
 
 SYMBOLS = ["SI=F", "SLV", "XAGUSD=X"]
+
+# India landed-cost markup over the global parity price: ~6% import duty + 3% GST
+# (compounds to ~9.3%) + small local premium -> approximates the MCX / retail rate.
+# Tune via the INDIA_PREMIUM_PCT env var (e.g. on Render) to match MCX to the rupee.
+INDIA_PREMIUM_PCT = float(os.environ.get("INDIA_PREMIUM_PCT", "9.3"))
 
 # pivot detection: a swing is the local extreme within +/- SWING bars
 SWING = 3
@@ -207,9 +213,12 @@ def snapshot():
     #      we go USD/oz -> INR/kg; for the SLV ETF proxy we just convert the share.
     usdinr = fetch_fx()
     if sym == "SLV":
-        factor, unit = usdinr, "INR/share"
+        factor, unit, premium = usdinr, "INR/share", 0.0
     else:
-        factor, unit = usdinr * 1000 / GRAMS_PER_OZ, "INR/kg"
+        premium = INDIA_PREMIUM_PCT
+        parity = usdinr * 1000 / GRAMS_PER_OZ          # pure global-parity ₹/kg
+        factor = parity * (1 + premium / 100)          # + duty + GST -> MCX-like
+        unit = "INR/kg"
 
     def cv(x):
         return round(x * factor) if x is not None else None
@@ -230,6 +239,9 @@ def snapshot():
             "usdinr": round(usdinr, 3),
             "usd_per_oz": round(price, 3),
             "inr_per_10g": cv(price) / 100 if unit == "INR/kg" else None,
+            "india_premium_pct": round(premium, 2),
+            "parity_inr_kg": round(price * usdinr * 1000 / GRAMS_PER_OZ)
+            if unit == "INR/kg" else None,
         },
         "indicators": {
             "ema20": cv(ema20),

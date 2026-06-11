@@ -227,7 +227,8 @@ function renderMarket(m){
   ch.textContent=arrow(m.change)+" "+inr(Math.abs(m.change))+" ("+m.change_pct+"%)";
   const f=m.fx;
   document.getElementById("subprice").textContent=
-    (f.inr_per_10g?inr(f.inr_per_10g)+"/10g · ":"")+"$"+f.usd_per_oz+"/oz · USDINR "+f.usdinr;
+    (f.inr_per_10g?inr(f.inr_per_10g)+"/10g · ":"")+"$"+f.usd_per_oz+"/oz · USDINR "+f.usdinr+
+    (f.india_premium_pct?" · incl. "+f.india_premium_pct+"% duty+GST (MCX-style)":"");
 
   const i=m.indicators;
   const kpi=(l,v)=>`<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div></div>`;
