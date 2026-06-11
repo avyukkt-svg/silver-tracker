@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Silver Tracker (INR)</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
 <style>
   :root{
     --bg:#0e1116; --panel:#161b22; --panel2:#1c232d; --line:#2a3440;
@@ -180,6 +181,7 @@
 </footer>
 
 <script>
+if(window['chartjs-plugin-annotation']) Chart.register(window['chartjs-plugin-annotation']);
 let chart, allNews=[], filter="movers", sortBy="impact";
 const inr = n => n==null ? "—" : "₹"+Number(Math.round(n)).toLocaleString("en-IN");
 const cls = n => n>0?"up":n<0?"down":"flat";
@@ -256,23 +258,48 @@ function renderZones(m){
 }
 
 function drawChart(m){
-  const labels=m.candles.map(c=>c.t), close=m.candles.map(c=>c.c);
+  // zoom to the recent ~60 sessions so old spikes don't squish the live action
+  const cd=(m.candles||[]).slice(-60);
+  const labels=cd.map(c=>c.t), close=cd.map(c=>c.c);
+  const price=m.price;
+  // show only the NEAREST 2 levels each side so the chart stays readable
+  const sup=(m.support||[]).slice(0,2), res=(m.resistance||[]).slice(0,2);
+  const f=v=>'₹'+Math.round(v).toLocaleString('en-IN');
+
+  // y-range: hug the recent price action + the shown levels, with padding
+  let lo=Math.min(...cd.map(c=>c.l)), hi=Math.max(...cd.map(c=>c.h));
+  [...sup,...res].forEach(z=>{lo=Math.min(lo,z.lo);hi=Math.max(hi,z.hi);});
+  lo=Math.min(lo,price); hi=Math.max(hi,price);
+  const pad=(hi-lo)*0.08||1000;
+
+  const ann={};
+  const band=(z,col)=>({type:'box',yMin:z.lo,yMax:z.hi,backgroundColor:col,borderWidth:0});
+  const lvl=(z,col,tag,side)=>({type:'line',yMin:z.price,yMax:z.price,borderColor:col,
+     borderWidth:1.5,borderDash:[6,4],
+     label:{display:true,content:tag+'  '+f(z.price),position:side,yAdjust:0,
+       backgroundColor:col,color:'#fff',font:{size:10,weight:'bold'},padding:3,borderRadius:4}});
+  res.forEach((z,i)=>{ann['rb'+i]=band(z,'rgba(239,68,68,.08)');
+                      ann['rl'+i]=lvl(z,'#ef4444','R'+(i+1),'start');});
+  sup.forEach((z,i)=>{ann['sb'+i]=band(z,'rgba(34,197,94,.08)');
+                      ann['sl'+i]=lvl(z,'#22c55e','S'+(i+1),'start');});
+  ann['now']={type:'line',yMin:price,yMax:price,borderColor:'#eab308',borderWidth:2,
+     label:{display:true,content:'Now  '+f(price),position:'end',
+       backgroundColor:'#eab308',color:'#0e1116',font:{size:11,weight:'bold'},padding:3,borderRadius:4}};
+
   if(chart) chart.destroy();
-  const sr=[...m.support.map(z=>({y:z.price,c:'#22c55e'})),
-            ...m.resistance.map(z=>({y:z.price,c:'#ef4444'}))];
-  const srSets=sr.map(z=>({label:'',data:labels.map(()=>z.y),borderColor:z.c,borderWidth:1,
-     borderDash:[5,4],pointRadius:0,fill:false,tension:0}));
   chart=new Chart(document.getElementById("chart"),{type:'line',
     data:{labels,datasets:[
-      {label:'Silver ₹/kg',data:close,borderColor:'#c8d1da',borderWidth:2,pointRadius:0,
+      {label:'Silver ₹/kg',data:close,borderColor:'#e6edf3',borderWidth:2,pointRadius:0,
        fill:true,tension:.15,
-       backgroundColor:(c)=>{const g=c.chart.ctx.createLinearGradient(0,0,0,320);
-         g.addColorStop(0,'rgba(200,209,218,.18)');g.addColorStop(1,'rgba(200,209,218,0)');return g;}},
-      ...srSets]},
-    options:{responsive:true,plugins:{legend:{display:false},
-      tooltip:{callbacks:{label:c=>'₹'+Number(c.parsed.y).toLocaleString('en-IN')+'/kg'}}},
-      scales:{x:{ticks:{color:'#8b98a5',maxTicksLimit:8},grid:{display:false}},
-              y:{ticks:{color:'#8b98a5',callback:v=>'₹'+(v/1000).toFixed(0)+'k'},grid:{color:'#1c232d'}}}}});
+       backgroundColor:(c)=>{const g=c.chart.ctx.createLinearGradient(0,0,0,340);
+         g.addColorStop(0,'rgba(200,209,218,.16)');g.addColorStop(1,'rgba(200,209,218,0)');return g;}}]},
+    options:{responsive:true,interaction:{intersect:false,mode:'index'},
+      plugins:{legend:{display:false},annotation:{annotations:ann},
+        tooltip:{callbacks:{label:c=>'₹'+Number(c.parsed.y).toLocaleString('en-IN')+'/kg'}}},
+      scales:{x:{ticks:{color:'#8b98a5',maxTicksLimit:7},grid:{display:false}},
+              y:{min:lo-pad,max:hi+pad,
+                 ticks:{color:'#8b98a5',callback:v=>'₹'+(v/1000).toFixed(0)+'k'},
+                 grid:{color:'#1c232d'}}}}});
 }
 
 function renderNews(n){
