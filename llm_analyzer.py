@@ -188,7 +188,8 @@ def estimate_india_premium(parity_inr_kg=None, default=9.3, ttl=21600, fail_ttl=
                 data = _post(model, key, body)
                 text = data["candidates"][0]["content"]["parts"][0]["text"]
                 obj = json.loads(text)
-                pct = max(3.0, min(20.0, float(obj["premium_pct"])))
+                # clamp to a realistic MCX band: ~6% duty + 3% GST + small premium
+                pct = max(8.0, min(13.0, float(obj["premium_pct"])))
                 _PREMIUM_CACHE.update(pct=round(pct, 2),
                                       reason=str(obj.get("reason", ""))[:60],
                                       ts=time.time())
