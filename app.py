@@ -37,7 +37,7 @@ _CACHE = {
     "score": None, "alert": None, "updated": None,
 }
 _MARKET_TTL = 60         # seconds  (price is cheap -> refresh often)
-_NEWS_TTL = 1800         # seconds  (news+Gemini -> every 30 min keeps us in free quota)
+_NEWS_TTL = 300          # seconds  (collect is parallel ~2s; Gemini enrich is non-blocking)
 _REFRESH_EVERY = 180     # background scheduler period (seconds)
 _lock = threading.Lock()
 _alert_lock = threading.Lock()

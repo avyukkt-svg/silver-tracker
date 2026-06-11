@@ -52,9 +52,6 @@ DEFAULTS = {
     "cooldown_minutes": 180,
     "smtp_host": "", "smtp_port": 465, "smtp_user": "", "smtp_pass": "",
     "from_addr": "", "to_addrs": [],
-    # Twilio WhatsApp (sandbox from = whatsapp:+14155238886)
-    "twilio_sid": "", "twilio_token": "",
-    "whatsapp_from": "", "whatsapp_to": [],
 }
 
 
@@ -68,54 +65,18 @@ def load_config():
     # env overlay so cloud hosts can configure alerts without a committed file
     env = os.environ
     for k, ek in [("smtp_host", "SMTP_HOST"), ("smtp_user", "SMTP_USER"),
-                  ("smtp_pass", "SMTP_PASS"), ("from_addr", "ALERT_FROM"),
-                  ("twilio_sid", "TWILIO_ACCOUNT_SID"),
-                  ("twilio_token", "TWILIO_AUTH_TOKEN"),
-                  ("whatsapp_from", "TWILIO_WHATSAPP_FROM")]:
+                  ("smtp_pass", "SMTP_PASS"), ("from_addr", "ALERT_FROM")]:
         if env.get(ek):
             cfg[k] = env[ek]
     if env.get("SMTP_PORT"):
         cfg["smtp_port"] = int(env["SMTP_PORT"])
     if env.get("ALERT_TO"):
         cfg["to_addrs"] = [a.strip() for a in env["ALERT_TO"].split(",") if a.strip()]
-    if env.get("WHATSAPP_TO"):
-        cfg["whatsapp_to"] = [a.strip() for a in env["WHATSAPP_TO"].split(",") if a.strip()]
     if env.get("BUY_THRESHOLD"):
         cfg["buy_threshold"] = int(env["BUY_THRESHOLD"])
     if env.get("SELL_THRESHOLD"):
         cfg["sell_threshold"] = int(env["SELL_THRESHOLD"])
     return cfg
-
-
-def _whatsapp_ready(cfg):
-    return bool(cfg["twilio_sid"] and cfg["twilio_token"]
-                and cfg["whatsapp_from"] and cfg["whatsapp_to"])
-
-
-def _send_whatsapp(cfg, body):
-    """Send a WhatsApp message to each recipient via the Twilio REST API
-    (urllib + Basic auth -> no twilio SDK dependency)."""
-    import base64
-    import urllib.parse
-    import urllib.request
-    sid, token = cfg["twilio_sid"], cfg["twilio_token"]
-    url = f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
-    auth = base64.b64encode(f"{sid}:{token}".encode()).decode()
-    frm = cfg["whatsapp_from"]
-    if not frm.startswith("whatsapp:"):
-        frm = "whatsapp:" + frm
-    sent = 0
-    for to in cfg["whatsapp_to"]:
-        dest = to if to.startswith("whatsapp:") else "whatsapp:" + to
-        data = urllib.parse.urlencode({"From": frm, "To": dest, "Body": body}).encode()
-        req = urllib.request.Request(url, data=data, headers={
-            "Authorization": "Basic " + auth,
-            "Content-Type": "application/x-www-form-urlencoded",
-        })
-        with urllib.request.urlopen(req, timeout=20, context=_SSL_CTX) as r:
-            if r.status in (200, 201):
-                sent += 1
-    return sent
 
 
 def _state():
@@ -212,30 +173,18 @@ def check(score_data, market):
             f"Momentum {score_data['components']['momentum']:+}\n\n"
             "— Silver Tracker (educational, not advice)"
         )
-        results = []
         if _smtp_ready(cfg):
             try:
                 _send_email(cfg, subject, body)
-                results.append("email")
+                detail = f"email sent for {verb} ({score})"
                 fired = True
             except Exception as e:  # noqa: BLE001
-                _log(f"email FAILED: {e}")
-        if _whatsapp_ready(cfg):
-            try:
-                n = _send_whatsapp(cfg, body)
-                if n:
-                    results.append(f"whatsapp×{n}")
-                    fired = True
-            except Exception as e:  # noqa: BLE001
-                _log(f"whatsapp FAILED: {e}")
-
-        if results:
-            detail = f"{verb} ({score}) sent via " + ", ".join(results)
+                detail = f"email FAILED: {e}"
+                _log(detail)
         else:
-            detail = f"{verb} signal ({score}) — no channel configured, logged only"
+            detail = f"{verb} signal ({score}) — email not configured, logged only"
         _log(detail)
-        # advance state if we fired, or if nothing is configured (avoid log spam)
-        if fired or not (_smtp_ready(cfg) or _whatsapp_ready(cfg)):
+        if fired or not _smtp_ready(cfg):
             st["last_signal"] = signal
             st["last_sent"] = now.isoformat()
             _save_state(st)
@@ -245,7 +194,6 @@ def check(score_data, market):
         "fired": fired,
         "detail": detail,
         "smtp_configured": _smtp_ready(cfg),
-        "whatsapp_configured": _whatsapp_ready(cfg),
         "buy_threshold": cfg["buy_threshold"],
         "sell_threshold": cfg["sell_threshold"],
         "enabled": cfg["enabled"],

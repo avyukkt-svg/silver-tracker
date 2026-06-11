@@ -230,6 +230,12 @@ const cls = n => n>0?"up":n<0?"down":"flat";
 const arrow = n => n>0?"▲":n<0?"▼":"●";
 
 async function load(){
+  // 1) paint price + chart + zones FAST from the cheap market endpoint
+  try{
+    const r=await fetch("/api/market"); const m=await r.json();
+    if(!m.error) renderMarket(m);
+  }catch(e){console.error(e);}
+  // 2) then fill in the score + news (slower: news feeds + AI) without blocking paint
   try{
     const r=await fetch("/api/all"); const d=await r.json();
     if(d.error){document.getElementById("news").textContent="Error: "+d.error;return;}
@@ -258,9 +264,8 @@ function renderScore(s,a,m){
   if(s.signal==="buy") msg=`<span class="dot" style="background:var(--bull)"></span><b>BUY alert active</b> — score ≥ ${a.buy_threshold}.`;
   else if(s.signal==="sell") msg=`<span class="dot" style="background:var(--bear)"></span><b>SELL alert active</b> — score ≤ ${a.sell_threshold}.`;
   else msg=`<span class="dot" style="background:var(--muted)"></span>No alert — fires at score ≥ ${a.buy_threshold} (buy) or ≤ ${a.sell_threshold} (sell).`;
-  const ch=[]; if(a.smtp_configured) ch.push("📧 Email"); if(a.whatsapp_configured) ch.push("🟢 WhatsApp");
-  msg += ch.length ? ` &nbsp;${ch.join(" + ")} configured.` :
-         ` &nbsp;<span style="color:var(--gold)">⚠ Configure email or WhatsApp to receive alerts.</span>`;
+  msg += a.smtp_configured ? ` &nbsp;📧 Email configured.` :
+         ` &nbsp;<span style="color:var(--gold)">⚠ Configure email to receive alerts.</span>`;
   if(a.fired) msg+=` &nbsp;<span class="up">Alert sent ✓</span>`;
   ab.innerHTML=msg;
 }

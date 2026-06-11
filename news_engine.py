@@ -439,11 +439,21 @@ def collect(per_topic=10):
     seen = set()
     out = []
     now = datetime.now(timezone.utc)
-    for query, directness in TOPICS:
+
+    # fetch all RSS feeds in parallel -- 18 serial HTTP round-trips was the slow
+    # part of a cold load; threads cut it to roughly one round-trip.
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _safe_fetch(q):
         try:
-            items = _fetch_rss(query, limit=per_topic)
+            return _fetch_rss(q, limit=per_topic)
         except Exception:  # noqa: BLE001  -- skip a flaky feed, keep the rest
-            continue
+            return []
+
+    with ThreadPoolExecutor(max_workers=min(10, len(TOPICS))) as ex:
+        fetched = list(ex.map(lambda t: (_safe_fetch(t[0]), t[0], t[1]), TOPICS))
+
+    for items, query, directness in fetched:
         for it in items:
             key = it["title"].lower()
             if not it["title"] or key in seen:
