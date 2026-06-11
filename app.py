@@ -36,8 +36,8 @@ _CACHE = {
     "news": None, "news_ts": 0,
     "score": None, "alert": None, "updated": None,
 }
-_MARKET_TTL = 60         # seconds
-_NEWS_TTL = 300          # seconds
+_MARKET_TTL = 60         # seconds  (price is cheap -> refresh often)
+_NEWS_TTL = 1800         # seconds  (news+Gemini -> every 30 min keeps us in free quota)
 _REFRESH_EVERY = 180     # background scheduler period (seconds)
 _lock = threading.Lock()
 _alert_lock = threading.Lock()
@@ -83,7 +83,7 @@ def refresh_all(force=False, run_alerts=False):
     avoids duplicate emails from concurrent calls racing on the alert state.
     """
     market = _market(force)
-    news = _news(force)
+    news = _news()           # never forced -> respects the 30-min TTL (saves AI quota)
     score = score_engine.compute(market, news)
     _CACHE["score"] = score
     if run_alerts:

@@ -213,10 +213,16 @@ def snapshot():
     #      we go USD/oz -> INR/kg; for the SLV ETF proxy we just convert the share.
     usdinr = fetch_fx()
     if sym == "SLV":
-        factor, unit, premium = usdinr, "INR/share", 0.0
+        factor, unit, premium, premium_src = usdinr, "INR/share", 0.0, "n/a"
     else:
-        premium = INDIA_PREMIUM_PCT
         parity = usdinr * 1000 / GRAMS_PER_OZ          # pure global-parity ₹/kg
+        premium, premium_src = INDIA_PREMIUM_PCT, "default"
+        try:                                           # let the AI set the premium
+            import llm_analyzer
+            premium, premium_src = llm_analyzer.estimate_india_premium(
+                parity_inr_kg=round(price * parity), default=INDIA_PREMIUM_PCT)
+        except Exception:  # noqa: BLE001
+            pass
         factor = parity * (1 + premium / 100)          # + duty + GST -> MCX-like
         unit = "INR/kg"
 
@@ -240,6 +246,7 @@ def snapshot():
             "usd_per_oz": round(price, 3),
             "inr_per_10g": cv(price) / 100 if unit == "INR/kg" else None,
             "india_premium_pct": round(premium, 2),
+            "premium_src": premium_src,
             "parity_inr_kg": round(price * usdinr * 1000 / GRAMS_PER_OZ)
             if unit == "INR/kg" else None,
         },

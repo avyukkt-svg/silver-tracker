@@ -152,6 +152,57 @@ def _call_gemini(cfg, headlines):
     raise last if last else RuntimeError("gemini call failed")
 
 
+_PREMIUM_CACHE = {"pct": None, "reason": "", "ts": 0, "fail_ts": 0}
+
+
+def estimate_india_premium(parity_inr_kg=None, default=9.3, ttl=21600, fail_ttl=1800):
+    """Ask Gemini for the % that MCX/domestic silver trades ABOVE global parity
+    (import duty + GST + local premium). Cached ~6h on success / ~30 min on failure
+    (so a dead quota doesn't get retried every refresh); clamped to a sane band;
+    falls back to `default` if AI is off or errors. Returns (pct, source)."""
+    cfg = load_config()
+    if not (cfg["enabled"] and cfg["keys"]):
+        return default, "default"
+    now = time.time()
+    if _PREMIUM_CACHE["pct"] is not None and now - _PREMIUM_CACHE["ts"] < ttl:
+        return _PREMIUM_CACHE["pct"], "AI (cached)"
+    if now - _PREMIUM_CACHE["fail_ts"] < fail_ttl:    # recently failed -> don't hammer
+        return default, "default"
+    ctx = (f"International parity is about Rs {parity_inr_kg:,}/kg right now. "
+           if parity_inr_kg else "")
+    prompt = (
+        "You are an India bullion-market expert. " + ctx +
+        "Estimate the percentage that MCX / domestic Indian silver currently trades "
+        "ABOVE the international parity price (global silver converted at USD/INR). "
+        "Account for: import customs duty (incl. AIDC), 3% GST, and the prevailing "
+        "local market premium or discount. Reply ONLY as JSON: "
+        '{"premium_pct": <number>, "reason": "<=12 words"}.')
+    body = json.dumps({
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"},
+    }).encode()
+    models = [cfg["model"], "gemini-2.5-flash", "gemini-2.0-flash"]
+    for model in models:
+        for key in cfg["keys"]:
+            try:
+                data = _post(model, key, body)
+                text = data["candidates"][0]["content"]["parts"][0]["text"]
+                obj = json.loads(text)
+                pct = max(3.0, min(20.0, float(obj["premium_pct"])))
+                _PREMIUM_CACHE.update(pct=round(pct, 2),
+                                      reason=str(obj.get("reason", ""))[:60],
+                                      ts=time.time())
+                return _PREMIUM_CACHE["pct"], "AI"
+            except urllib.error.HTTPError as e:
+                if e.code in (429, 401, 403):
+                    continue
+                break
+            except Exception:  # noqa: BLE001
+                continue
+    _PREMIUM_CACHE["fail_ts"] = time.time()           # back off after a full miss
+    return default, "default"
+
+
 def enrich(items):
     """Re-classify the top news items with Gemini. Mutates and returns items + meta.
 
